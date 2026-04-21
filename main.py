@@ -61,7 +61,13 @@ async def main() -> None:
     await watchdog.start()
 
     # 5. Skills
-    skill_runner = SkillRunner(config.skills_path)
+    skill_runner = SkillRunner(
+        config.skills_path,
+        store=store,
+        crypto=crypto,
+        max_retries=config.max_retries,
+        timeout=config.execution_timeout,
+    )
     await skill_runner.load()
     logger.info("Loaded %d skills", len(skill_runner.skills))
 
