@@ -76,6 +76,10 @@ async def main() -> None:
     # Wire runner into scheduler so jobs can call run_skill
     scheduler.skill_runner = skill_runner
 
+    # Wire runner into watchdog so file events can trigger skills
+    watchdog.skill_runner = skill_runner
+    watchdog.llm_client = llm_client
+
     # Register cron expressions declared in .md frontmatter
     await register_builtin_cron_jobs(scheduler, skill_runner.skills)
 
@@ -126,6 +130,20 @@ async def main() -> None:
 
     try:
         async with app:
+            # send_fn bridges the Telegram bot into the scheduler and watchdog
+            async def _send_to_user(text: str) -> None:
+                try:
+                    await app.bot.send_message(
+                        chat_id=config.telegram_allowed_user_id,
+                        text=text,
+                        parse_mode="Markdown",
+                    )
+                except Exception as exc:
+                    logger.warning("send_fn failed: %s", exc)
+
+            scheduler.send_fn = _send_to_user
+            watchdog.send_fn = _send_to_user
+
             await app.start()
             await app.updater.start_polling(
                 allowed_updates=["message", "callback_query"]
