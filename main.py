@@ -18,6 +18,7 @@ from memory.crypto import CryptoManager
 from llm.client import LLMClient
 from llm.context import ContextManager
 from scheduler.manager import SchedulerManager
+from scheduler.jobs import register_builtin_cron_jobs
 from watchdog_manager import WatchdogManager
 from skills.runner import SkillRunner
 from bot.handlers import message_handler
@@ -52,8 +53,9 @@ async def main() -> None:
     llm_client = LLMClient(config)
     ctx_manager = ContextManager(store)
 
-    # 3. Scheduler
+    # 3. Scheduler (start before skills so jobs can be registered during load)
     scheduler = SchedulerManager(store)
+    scheduler.llm_client = llm_client
     await scheduler.start()
 
     # 4. Watchdog
@@ -70,6 +72,12 @@ async def main() -> None:
     )
     await skill_runner.load()
     logger.info("Loaded %d skills", len(skill_runner.skills))
+
+    # Wire runner into scheduler so jobs can call run_skill
+    scheduler.skill_runner = skill_runner
+
+    # Register cron expressions declared in .md frontmatter
+    await register_builtin_cron_jobs(scheduler, skill_runner.skills)
 
     # 6. Telegram bot
     app = Application.builder().token(config.telegram_bot_token).build()
