@@ -27,6 +27,13 @@ class Config:
     max_retries: int
     execution_timeout: int
 
+    def __repr__(self) -> str:
+        return (
+            f"Config(assistant_name={self.assistant_name!r}, "
+            f"db_path={self.db_path}, model={self.lm_studio_model!r}, "
+            f"telegram_bot_token=<redacted>, secret_key=<redacted>)"
+        )
+
 
 _config: Config | None = None
 
@@ -72,6 +79,9 @@ def _validate_required_env(keys: list[str]) -> None:
     missing = [k for k in keys if not os.getenv(k)]
     if missing:
         raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    secret = os.getenv("SECRET_KEY", "")
+    if len(secret) < 32:
+        raise ValueError("SECRET_KEY must be at least 32 characters long")
 
 
 def _setup_logging(config: Config) -> None:

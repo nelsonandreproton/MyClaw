@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from collections import defaultdict
 
@@ -13,6 +14,7 @@ _RATE_WINDOW = 60  # seconds
 
 # Per-user timestamps of recent messages (in-memory, resets on restart)
 _message_times: dict[int, list[float]] = defaultdict(list)
+_rate_lock = threading.Lock()
 
 
 def is_authorized(update: Update) -> bool:
@@ -31,11 +33,12 @@ def is_authorized(update: Update) -> bool:
 
 
 def is_rate_limited(user_id: int) -> bool:
-    now = time.monotonic()
-    times = _message_times[user_id]
-    times[:] = [t for t in times if now - t < _RATE_WINDOW]
-    if len(times) >= _RATE_LIMIT:
-        logger.warning("Rate limit hit for user_id=%d", user_id)
-        return True
-    times.append(now)
-    return False
+    with _rate_lock:
+        now = time.monotonic()
+        times = _message_times[user_id]
+        times[:] = [t for t in times if now - t < _RATE_WINDOW]
+        if len(times) >= _RATE_LIMIT:
+            logger.warning("Rate limit hit for user_id=%d", user_id)
+            return True
+        times.append(now)
+        return False

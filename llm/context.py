@@ -34,6 +34,8 @@ class ContextManager:
         content: str,
         skill_name: str | None = None,
     ) -> None:
+        if len(content) > 100_000:
+            content = content[:100_000] + "\n[truncado]"
         tokens = estimate_tokens(content)
         await self._store.execute(
             "INSERT INTO messages (role, content, tokens, skill_name) VALUES (?, ?, ?, ?)",
@@ -116,10 +118,11 @@ class ContextManager:
             return
 
         ids = tuple(r["id"] for r in to_compress)
-        placeholders = ",".join("?" * len(ids))
-        await self._store.execute(
-            f"DELETE FROM messages WHERE id IN ({placeholders})", ids
-        )
+        if ids:  # Guard: to_compress could theoretically be empty
+            placeholders = ",".join("?" * len(ids))
+            await self._store.execute(
+                f"DELETE FROM messages WHERE id IN ({placeholders})", ids
+            )
         await self.add_message(
             "system", f"[Resumo de conversa anterior]\n{summary}"
         )

@@ -228,11 +228,22 @@ class SkillRunner:
         loop: asyncio.AbstractEventLoop,
         send_fn: Callable,
     ) -> dict:
+        _counts: dict[str, int] = {"send_message": 0, "get_credential": 0, "save_credential": 0}
+        _MAX_CALLS = {"send_message": 50, "get_credential": 10, "save_credential": 10}
+        _MSG_MAX_LEN = 10_000  # characters
+
         def send_message(text: str) -> None:
-            f = asyncio.run_coroutine_threadsafe(send_fn(str(text)), loop)
+            _counts["send_message"] += 1
+            if _counts["send_message"] > _MAX_CALLS["send_message"]:
+                raise RuntimeError("send_message: call limit exceeded")
+            truncated = str(text)[:_MSG_MAX_LEN]
+            f = asyncio.run_coroutine_threadsafe(send_fn(truncated), loop)
             f.result(timeout=15)
 
         def get_credential(service: str) -> dict | None:
+            _counts["get_credential"] += 1
+            if _counts["get_credential"] > _MAX_CALLS["get_credential"]:
+                raise RuntimeError("get_credential: call limit exceeded")
             if not (self._crypto and self._store):
                 return None
             f = asyncio.run_coroutine_threadsafe(
@@ -241,6 +252,9 @@ class SkillRunner:
             return f.result(timeout=10)
 
         def save_credential(service: str, data: dict) -> None:
+            _counts["save_credential"] += 1
+            if _counts["save_credential"] > _MAX_CALLS["save_credential"]:
+                raise RuntimeError("save_credential: call limit exceeded")
             if not (self._crypto and self._store):
                 return
             f = asyncio.run_coroutine_threadsafe(
@@ -249,7 +263,7 @@ class SkillRunner:
             f.result(timeout=10)
 
         def log(message: str) -> None:
-            logger.info("[skill] %s", message)
+            logger.info("[skill] %s", str(message)[:1_000])
 
         return {
             "send_message": send_message,

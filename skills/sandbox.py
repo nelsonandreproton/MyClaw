@@ -7,6 +7,21 @@ from dataclasses import dataclass
 
 EXECUTION_TIMEOUT = 30  # seconds
 
+# Modules whose import is blocked, mirroring skills/validator.py BLOCKED_MODULES.
+# Kept in sync here to enforce the restriction at runtime (not just AST-parse time),
+# which prevents indirect bypass via `x = __import__; x('subprocess')`.
+_BLOCKED_IMPORT_ROOTS: frozenset[str] = frozenset({"subprocess", "socket"})
+
+_REAL_IMPORT = builtins.__import__
+
+
+def _restricted_import(name: str, globals=None, locals=None, fromlist=(), level: int = 0):
+    root = name.split(".")[0]
+    if root in _BLOCKED_IMPORT_ROOTS:
+        raise ImportError(f"Import of '{name}' is not allowed in skills")
+    return _REAL_IMPORT(name, globals, locals, fromlist, level)
+
+
 # Builtins exposed inside the sandbox (spec section 6)
 _SAFE_BUILTIN_NAMES: list[str] = [
     # core functions
@@ -22,7 +37,8 @@ _SAFE_BUILTIN_NAMES: list[str] = [
     "AttributeError", "RuntimeError", "StopIteration",
     "IndexError", "OSError", "IOError", "NotImplementedError",
     # required by Python internals (class/import machinery)
-    "__import__", "__build_class__", "__name__",
+    # __import__ is intentionally NOT here — we inject _restricted_import below
+    "__build_class__", "__name__",
 ]
 
 
@@ -57,6 +73,10 @@ def execute_in_sandbox(
         captured.write(sep.join(str(a) for a in args) + end)
 
     safe_builtins["print"] = _print
+
+    # Runtime import guard — replaces the real __import__ with a restricted version
+    # so even indirect calls like `x = __import__; x('subprocess')` are blocked.
+    safe_builtins["__import__"] = _restricted_import
 
     # Inject safe stdlib objects referenced in the spec's ALLOWED_BUILTINS
     safe_builtins["datetime"] = _dt.datetime

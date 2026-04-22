@@ -60,6 +60,12 @@ class SchedulerManager:
     # ------------------------------------------------------------------
 
     async def add_job(self, skill_name: str, cron_expr: str) -> int:
+        if len(cron_expr) > 100:
+            raise SchedulerError(f"Cron expression too long: {cron_expr!r}")
+        try:
+            CronTrigger.from_crontab(cron_expr)
+        except Exception as exc:
+            raise SchedulerError(f"Invalid cron expression '{cron_expr}': {exc}") from exc
         job_id = await save_job(self._store, skill_name, cron_expr)
         record = await get_job_by_id(self._store, job_id)
         if record:

@@ -215,6 +215,13 @@ class WatchdogManager:
         pattern: str | None = None,
         skill_name: str | None = None,
     ) -> int:
+        resolved = Path(path).resolve()
+        if not resolved.exists():
+            raise ValueError(f"Path does not exist: {path}")
+        if resolved.is_symlink():
+            raise ValueError(f"Symlinks are not allowed: {path}")
+        path = str(resolved)  # store the canonical form
+
         cursor = await self._store.execute(
             "INSERT INTO file_watches (path, pattern, skill_name, enabled) "
             "VALUES (?, ?, ?, 1)",

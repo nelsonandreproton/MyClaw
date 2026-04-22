@@ -364,10 +364,19 @@ async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Sem logs disponíveis.")
         return
 
-    with open(log_file, "r", encoding="utf-8") as fh:
-        lines = fh.readlines()
+    # Read only the last 8 KB from the end — avoids OOM on large log files
+    max_bytes = 8 * 1024
+    with open(log_file, "rb") as fh:
+        fh.seek(0, 2)
+        file_size = fh.tell()
+        fh.seek(max(0, file_size - max_bytes))
+        tail = fh.read().decode("utf-8", errors="replace")
 
-    last_lines = "".join(lines[-10:]).strip()
+    lines = tail.splitlines()
+    if file_size > max_bytes:
+        lines = lines[1:]  # First line may be a partial cut
+    last_lines = "\n".join(lines[-10:]).strip()
+
     if not last_lines:
         await update.message.reply_text("Log vazio.")
         return

@@ -64,7 +64,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     except Exception as exc:
         logger.exception("Error in message_handler: %s", exc)
         try:
-            await processing_msg.edit_text(f"❌ Erro inesperado: {exc}")
+            await processing_msg.edit_text("❌ Erro inesperado. Consulta /logs para detalhes.")
         except Exception:
             pass
 
